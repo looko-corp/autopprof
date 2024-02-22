@@ -10,7 +10,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/daangn/autopprof/report"
+	"github.com/looko-corp/autopprof/report"
 )
 
 const (

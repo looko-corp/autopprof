@@ -12,7 +12,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 
-	"github.com/daangn/autopprof/report"
+	"github.com/looko-corp/autopprof/report"
 )
 
 func TestStart(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/daangn/autopprof
+module github.com/looko-corp/autopprof
 
 go 1.19
 
