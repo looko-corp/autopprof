@@ -3,7 +3,7 @@ package autopprof
 import (
 	"time"
 
-	"github.com/daangn/autopprof/report"
+	"github.com/looko/autopprof/report"
 )
 
 const (
