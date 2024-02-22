@@ -233,6 +233,9 @@ func (ap *autoPprof) watchMemUsage() {
 				log.Println(err)
 				return
 			}
+
+			fmt.Println("@@ autopprof @@ mem usage: ", usage)
+
 			if usage < ap.memThreshold {
 				// Reset the count if the memory usage goes under the threshold.
 				consecutiveOverThresholdCnt = 0

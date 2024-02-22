@@ -5,6 +5,7 @@ package autopprof
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path"
 	"strconv"
@@ -54,6 +55,7 @@ func (c *cgroupV1) setCPUQuota() error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("@@ autopprof @@ quota = ", quota, ", period = ", period)
 	c.cpuQuota = float64(quota) / float64(period)
 	return nil
 }
@@ -85,16 +87,21 @@ func (c *cgroupV1) cpuUsage() (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	fmt.Printf("@@ autopprof @@ stat.CPU.Usage: %+v \n", stat.CPU.Usage)
 	c.snapshotCPUUsage(stat.CPU.Usage.Total) // In nanoseconds.
 
 	// Calculate the usage only if there are enough snapshots.
 	if !c.q.isFull() {
+		fmt.Println("@@ autopprof @@ cpu is full")
 		return 0, nil
 	}
 
 	s1, s2 := c.q.head(), c.q.tail()
+	fmt.Printf("@@ autopprof @@ s1 = %+v, s2 = %+v \n", s1, s2)
 	delta := time.Duration(s2.usage-s1.usage) * cgroupV1UsageUnit
 	duration := s2.timestamp.Sub(s1.timestamp)
+	fmt.Printf("@@ autopprof @@ delta = %+v(%+v), duration = %+v(%+v), cpuQuota = %+v \n", delta, float64(delta), duration, float64(duration), c.cpuQuota)
 	return (float64(delta) / float64(duration)) / c.cpuQuota, nil
 }
 
@@ -112,6 +119,9 @@ func (c *cgroupV1) memUsage() (float64, error) {
 }
 
 func (c *cgroupV1) parseCPU(filename string) (int, error) {
+	fullpath := path.Join(c.mountPoint, c.cpuSubsystem, filename)
+	fmt.Println("@@ autopprof @@ fullpath = ", fullpath)
+
 	f, err := os.Open(
 		path.Join(c.mountPoint, c.cpuSubsystem, filename),
 	)
@@ -120,7 +130,10 @@ func (c *cgroupV1) parseCPU(filename string) (int, error) {
 	}
 	scanner := bufio.NewScanner(f)
 	if scanner.Scan() {
-		val, err := strconv.Atoi(scanner.Text())
+		scanned := scanner.Text()
+		fmt.Println("@@ autopprof @@ scanned = ", scanned)
+
+		val, err := strconv.Atoi(scanned)
 		if err != nil {
 			return 0, err
 		}
