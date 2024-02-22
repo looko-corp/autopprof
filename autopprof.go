@@ -150,6 +150,8 @@ func (ap *autoPprof) watchCPUUsage() {
 		select {
 		case <-ticker.C:
 			usage, err := ap.queryer.cpuUsage()
+			fmt.Println("@@ autopprof @@ cpu usage: ", usage)
+
 			if err != nil {
 				log.Println(err)
 				return
