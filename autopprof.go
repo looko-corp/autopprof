@@ -73,6 +73,10 @@ func Start(opt Option) error {
 		return err
 	}
 
+	if opt.UseAWSFargate {
+		qryer = newAWSFargate(opt.VCPUSize)
+	}
+
 	profr := newDefaultProfiler(defaultCPUProfilingDuration)
 	ap := &autoPprof{
 		watchInterval:               defaultWatchInterval,

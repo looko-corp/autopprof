@@ -40,6 +40,9 @@ type Option struct {
 	// Reporter is the reporter to send the profiling report implementing
 	//  the report.Reporter interface.
 	Reporter report.Reporter
+
+	UseAWSFargate bool
+	VCPUSize float64 
 }
 
 // NOTE(mingrammer): testing the validate() is done in autopprof_test.go.

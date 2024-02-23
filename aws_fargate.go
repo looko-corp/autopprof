@@ -5,6 +5,7 @@ package autopprof
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path"
 	"strconv"
@@ -15,58 +16,45 @@ import (
 )
 
 const (
-	cgroupV1MountPoint    = "/sys/fs/cgroup"
-	cgroupV1CPUSubsystem  = "cpu"
-	cgroupV1CPUQuotaFile  = "cpu.cfs_quota_us"
-	cgroupV1CPUPeriodFile = "cpu.cfs_period_us"
-
-	cgroupV1UsageUnit = time.Nanosecond
+	limitPerVCPU = 1206340307240 // maybe
 )
 
-type cgroupV1 struct {
+type awsFargate struct {
 	staticPath   string
 	mountPoint   string
 	cpuSubsystem string
+	vCPUSize     float64
 
 	cpuQuota float64
 
 	q cpuUsageSnapshotQueuer
 }
 
-func newCgroupsV1() *cgroupV1 {
+func newAWSFargate(vcpuSize float64) *awsFargate {
 	q := newCPUUsageSnapshotQueue(
 		cpuUsageSnapshotQueueSize,
 	)
-	return &cgroupV1{
+	return &awsFargate{
 		staticPath:   "/",
 		mountPoint:   cgroupV1MountPoint,
 		cpuSubsystem: cgroupV1CPUSubsystem,
 		q:            q,
+		vCPUSize:     vcpuSize,
 	}
 }
 
-func (c *cgroupV1) setCPUQuota() error {
-	quota, err := c.parseCPU(cgroupV1CPUQuotaFile)
-	if err != nil {
-		return err
-	}
-	period, err := c.parseCPU(cgroupV1CPUPeriodFile)
-	if err != nil {
-		return err
-	}
-	// fmt.Println("@@ autopprof @@ quota = ", quota, ", period = ", period)
-	c.cpuQuota = float64(quota) / float64(period)
+func (c *awsFargate) setCPUQuota() error {
 	return nil
 }
 
-func (c *cgroupV1) snapshotCPUUsage(usage uint64) {
+func (c *awsFargate) snapshotCPUUsage(usage uint64) {
 	c.q.enqueue(&cpuUsageSnapshot{
 		usage:     usage,
 		timestamp: time.Now(),
 	})
 }
 
-func (c *cgroupV1) stat() (*v1.Metrics, error) {
+func (c *awsFargate) stat() (*v1.Metrics, error) {
 	var (
 		path    = cgroups.StaticPath(c.staticPath)
 		cg, err = cgroups.Load(cgroups.V1, path)
@@ -81,7 +69,7 @@ func (c *cgroupV1) stat() (*v1.Metrics, error) {
 	return stat, nil
 }
 
-func (c *cgroupV1) cpuUsage() (float64, error) {
+func (c *awsFargate) cpuUsage() (float64, error) {
 	stat, err := c.stat()
 	if err != nil {
 		return 0, err
@@ -89,21 +77,19 @@ func (c *cgroupV1) cpuUsage() (float64, error) {
 
 	c.snapshotCPUUsage(stat.CPU.Usage.Total) // In nanoseconds.
 
+	totalUsage := float64(stat.CPU.Usage.Total)
+
 	// Calculate the usage only if there are enough snapshots.
 	if !c.q.isFull() {
-		// fmt.Println("@@ autopprof @@ cpu is full")
 		return 0, nil
 	}
 
-	s1, s2 := c.q.head(), c.q.tail()
-	// fmt.Printf("@@ autopprof @@ s1 = %+v, s2 = %+v \n", s1, s2)
-	delta := time.Duration(s2.usage-s1.usage) * cgroupV1UsageUnit
-	duration := s2.timestamp.Sub(s1.timestamp)
-	// fmt.Printf("@@ autopprof @@ delta = %+v(%+v), duration = %+v(%+v), cpuQuota = %+v \n", delta, float64(delta), duration, float64(duration), c.cpuQuota)
-	return (float64(delta) / float64(duration)) / c.cpuQuota, nil
+	cpuLimit := float64(limitPerVCPU) * c.vCPUSize
+
+	return totalUsage / cpuLimit, nil
 }
 
-func (c *cgroupV1) memUsage() (float64, error) {
+func (c *awsFargate) memUsage() (float64, error) {
 	stat, err := c.stat()
 	if err != nil {
 		return 0, err
@@ -116,18 +102,20 @@ func (c *cgroupV1) memUsage() (float64, error) {
 	return float64(usage) / float64(limit), nil
 }
 
-func (c *cgroupV1) parseCPU(filename string) (int, error) {
+func (c *awsFargate) parseCPU(filename string) (int, error) {
 	fullpath := path.Join(c.mountPoint, c.cpuSubsystem, filename)
-	//("@@ autopprof @@ fullpath = ", fullpath)
+	fmt.Println("@@ autopprof @@ fullpath = ", fullpath)
 
-	f, err := os.Open(fullpath)
+	f, err := os.Open(
+		path.Join(c.mountPoint, c.cpuSubsystem, filename),
+	)
 	if err != nil {
 		return 0, err
 	}
 	scanner := bufio.NewScanner(f)
 	if scanner.Scan() {
 		scanned := scanner.Text()
-		//fmt.Println("@@ autopprof @@ scanned = ", scanned)
+		fmt.Println("@@ autopprof @@ scanned = ", scanned)
 
 		val, err := strconv.Atoi(scanned)
 		if err != nil {

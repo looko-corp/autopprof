@@ -22,6 +22,7 @@ const (
 type SlackReporter struct {
 	app     string
 	channel string
+	serverName string
 
 	client *slack.Client
 }
@@ -31,6 +32,7 @@ type SlackReporterOption struct {
 	App     string
 	Token   string
 	Channel string
+	ServerName string
 }
 
 // NewSlackReporter returns the new SlackReporter.
@@ -39,6 +41,7 @@ func NewSlackReporter(opt *SlackReporterOption) *SlackReporter {
 		app:     opt.App,
 		channel: opt.Channel,
 		client:  slack.New(opt.Token),
+		serverName: opt.ServerName,
 	}
 }
 
@@ -55,7 +58,7 @@ func (s *SlackReporter) ReportCPUProfile(
 	if _, err := s.client.UploadFileContext(ctx, slack.FileUploadParameters{
 		Reader:         r,
 		Filename:       filename,
-		Title:          filename,
+		Title:          s.serverName+"_"+filename,
 		InitialComment: comment,
 		Channels:       []string{s.channel},
 	}); err != nil {
@@ -77,7 +80,7 @@ func (s *SlackReporter) ReportHeapProfile(
 	if _, err := s.client.UploadFileContext(ctx, slack.FileUploadParameters{
 		Reader:         r,
 		Filename:       filename,
-		Title:          filename,
+		Title:          s.serverName+"_"+filename,
 		InitialComment: comment,
 		Channels:       []string{s.channel},
 	}); err != nil {
